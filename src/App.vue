@@ -62,7 +62,9 @@ onMounted(() => {
 @import '@/assets/styles/variables';
 .app {
   min-height: 100vh;
-  margin: 60px 20px;
+  margin: 60px auto;
+  max-width: 1366px;
+  padding: 0 20px;
   &__title {
     text-align: center;
     margin: 5rem 0;

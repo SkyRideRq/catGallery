@@ -82,10 +82,17 @@ const handleWheelZoom = (e: WheelEvent) => {
 const translateX = ref(0)
 const translateY = ref(0)
 const isDragging = ref(false)
+const isPinching = ref(false)
 const startX = ref(0)
 const startY = ref(0)
 const startTranslateX = ref(0)
 const startTranslateY = ref(0)
+const startDistance = ref(0)
+const startScale = ref(1)
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const lastTouchX = ref(0)
+const lastTouchY = ref(0)
 const wrapperRef = ref<HTMLDivElement | null>(null)
 const imageRef = ref<HTMLImageElement | null>(null)
 const aspectRatio = ref(1)
@@ -111,7 +118,6 @@ const getBounds = () => {
 }
 
 const onMouseDown = (e: MouseEvent) => {
-  if (scale.value <= 1) return
   isDragging.value = true
   startX.value = e.clientX
   startY.value = e.clientY
@@ -136,18 +142,44 @@ const endDrag = () => {
 }
 
 const onTouchStart = (e: TouchEvent) => {
-  if (scale.value <= 1) return
-  const t = e.touches[0]
-  isDragging.value = true
-  startX.value = t!.clientX
-  startY.value = t!.clientY
-  startTranslateX.value = translateX.value
-  startTranslateY.value = translateY.value
+  if (e.touches.length === 2) {
+    isPinching.value = true
+    isDragging.value = false
+    const [t1, t2] = e.touches
+    const dx = t1!.clientX - t2!.clientX
+    const dy = t1!.clientY - t2!.clientY
+    startDistance.value = Math.hypot(dx, dy)
+    startScale.value = scale.value
+  } else {
+    const t = e.touches[0]
+    isDragging.value = true
+    startX.value = t!.clientX
+    startY.value = t!.clientY
+    touchStartX.value = t!.clientX
+    touchStartY.value = t!.clientY
+    lastTouchX.value = t!.clientX
+    lastTouchY.value = t!.clientY
+    startTranslateX.value = translateX.value
+    startTranslateY.value = translateY.value
+  }
 }
 
 const onTouchMove = (e: TouchEvent) => {
+  if (isPinching.value && e.touches.length >= 2) {
+    const [t1, t2] = e.touches
+    const dx = t1!.clientX - t2!.clientX
+    const dy = t1!.clientY - t2!.clientY
+    const distance = Math.hypot(dx, dy)
+    const factor = distance / Math.max(1, startDistance.value)
+    const newScale = startScale.value * factor
+    scale.value = Math.max(minScale, Math.min(maxScale, newScale))
+    clampToBounds()
+    return
+  }
   if (!isDragging.value) return
   const t = e.touches[0]
+  lastTouchX.value = t!.clientX
+  lastTouchY.value = t!.clientY
   const dx = t!.clientX - startX.value
   const dy = t!.clientY - startY.value
   const { maxX, maxY } = getBounds()
@@ -158,7 +190,17 @@ const onTouchMove = (e: TouchEvent) => {
 }
 
 const onTouchEnd = () => {
+  if (isPinching.value) {
+    isPinching.value = false
+    clampToBounds()
+    return
+  }
   isDragging.value = false
+  const totalDy = lastTouchY.value - touchStartY.value
+  const totalDx = lastTouchX.value - touchStartX.value
+  if (scale.value === 1 && Math.abs(totalDy) > 80 && Math.abs(totalDx) < 60) {
+    closeModal()
+  }
 }
 
 const clampToBounds = () => {
